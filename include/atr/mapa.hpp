@@ -1,4 +1,10 @@
 // mapa dO galpao em 2d. Baias, zonas, lugar de recarga e passagens pequenas
+//   x ->  0         7 8                 21 22 23 24      30 31
+//  y=0                                                  
+//         | baias 1..4 |   zona de transporte   | gates | zonas A..D
+//         | (cols 1-7) |  (+ sala de recarga,   | (cap) |
+//         |            |    bloco central)      |       |
+//
 #pragma once
 #include <string>
 #include <vector>
@@ -53,27 +59,35 @@ namespace atr {
             /// @return Retorna coordenada da base de recarga daquela bateria
             Ponto carregador(int i) const;
 
-            /// @brief 
-            /// @param n 
+            /// @brief responsavel por fazer com que um robo nao nasca em cima do outro
+            /// @param n ID do robo
             /// @return Retorna a coordenada em que o robo nasce no mapa
             Ponto ponto_inicial(int n) const {
                 return {8 + (n % 14), 19};
             }
 
-            /// @brief 
-            /// @param zona 
-            /// @param tamanho 
+            /// @brief saber se a carga cabe no corredor
+            /// @param corredor qual corredor e
+            /// @param tamanho tamanho da carga
             /// @return Retorna se a carga cabe naquele corredor - v ou f
-            bool zona_aceita(int zona, int tamanho) const { 
-                return capacidade_corredor(zona) >= tamanho;
+            bool corredor_aceita_carga(int corredor, int tamanho) const { 
+                return capacidade_corredor(corredor) >= tamanho;
             }
 
+            /// @brief gps do robo
+            /// @param de onde o robo esta agora 
+            /// @param para onde o robo precisa ir
+            /// @param tamanho_grupo quantos robos fazem parte dessa tarefa
+            /// @return lista de coordenadas com a rota que o robo precisa seguir 
             std::vector<Ponto> caminho(Ponto de, Ponto para, int tamanho_grupo = 1) const;
 
+            /// @brief mostrar o mapa no terminal
+            /// @param robos 
+            /// @return 
             std::string renderizar(const std::vector<Ponto>& robos = {}) const;
         private:
-            std::vector<uint8_t> grade_;
-            std::vector<uint8_t> corredores_;
+            std::vector<uint8_t> grade_; // guarda o desenho do galpao, onde tem parede ou nao
+            std::vector<uint8_t> corredores_; // posicao dos corredores
     };
 
     const MapaGalpao& obter_mapa();
