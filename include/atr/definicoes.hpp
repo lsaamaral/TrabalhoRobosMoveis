@@ -1,3 +1,4 @@
+// Estruturas de tempo, variaveis, tipos e etc
 #pragma once
 #include <unistd.h>
 #include <cstdarg>
