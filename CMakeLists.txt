@@ -33,3 +33,7 @@ add_test(NAME TesteTimer COMMAND teste_timer)
 add_executable(teste_hardware testes/teste_hardware.cpp)
 target_link_libraries(teste_hardware PRIVATE atrlib Threads::Threads)
 add_test(NAME TesteHardware COMMAND teste_hardware)
+
+add_executable(teste_robo testes/teste_robo.cpp)
+target_link_libraries(teste_robo PRIVATE atrlib Threads::Threads)
+add_test(NAME TesteRobo COMMAND teste_robo)

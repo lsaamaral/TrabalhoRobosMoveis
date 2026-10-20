@@ -8,6 +8,46 @@
 
 namespace atr {
 
+    void loop_navegacao(InterfaceHardware& hw, ContextoRobo& ctx, std::atomic<bool>& parar) {
+        TemporizadorPeriodico timer(T_NAV_MS);
+        const MapaGalpao& mapa = obter_mapa();
+
+        while (!parar) {
+            timer.esperar();
+            const EntradasHw entradas = hw.ler_entradas();
+            SaidasHw saidas{entradas.posicao_atual, false};
+
+            {
+                std::lock_guard<std::mutex> lock(ctx.mtx);
+                saidas.acoplar_e_erguer = ctx.acoplar &&
+                    ctx.estado_nav == Estado::Acoplando;
+
+                Ponto destino = entradas.posicao_atual;
+                if (ctx.pedir_recarga) {
+                    destino = ctx.destino_recarga;
+                    ctx.estado_nav = Estado::IndoRecarga;
+                } else if (ctx.tem_destino) {
+                    destino = ctx.destino;
+                    if (entradas.posicao_atual == destino) {
+                        ctx.estado_nav = saidas.acoplar_e_erguer
+                            ? Estado::Acoplando : Estado::Disponivel;
+                    } else {
+                        ctx.estado_nav = Estado::IndoParaBaia;
+                    }
+                }
+
+                if (!entradas.falha && entradas.posicao_atual != destino) {
+                    const auto rota = mapa.caminho(entradas.posicao_atual, destino);
+                    if (rota.size() > 1) {
+                        saidas.setpoint = rota[1];
+                    }
+                }
+            }
+
+            hw.escrever_saidas(saidas);
+        }
+    }
+
     void loop_status(InterfaceHardware& hw, ContextoRobo& ctx, std::atomic<bool>& parar) {
         TemporizadorPeriodico timer(T_STATUS_MS);
         const MapaGalpao& mapa = obter_mapa();
@@ -106,5 +146,43 @@ namespace atr {
                 logf("STATUS", m);
             }
         }
+    }
+
+    Robo::Robo(int id, Ponto pos_inicial) : id_(id), hardware_(pos_inicial) {
+        contexto_.status.pos = pos_inicial;
+        thread_navegacao_ = std::thread(&loop_navegacao, std::ref(hardware_), std::ref(contexto_), std::ref(parar_));
+        thread_status_ = std::thread(&loop_status, std::ref(hardware_), std::ref(contexto_), std::ref(parar_));
+    }
+
+    Robo::~Robo() {
+        parar_ = true;
+        if (thread_navegacao_.joinable()) {
+            thread_navegacao_.join();
+        }
+        if (thread_status_.joinable()) {
+            thread_status_.join();
+        }
+    }
+
+    void Robo::enviar_destino(Ponto destino) {
+        std::lock_guard<std::mutex> lock(contexto_.mtx);
+        contexto_.destino = destino;
+        contexto_.tem_destino = true;
+        if (contexto_.estado_nav != Estado::Acoplando) {
+            contexto_.estado_nav = Estado::IndoParaBaia;
+        }
+    }
+
+    void Robo::comandar_acoplamento(bool acoplar) {
+        std::lock_guard<std::mutex> lock(contexto_.mtx);
+        contexto_.acoplar = acoplar;
+        if (acoplar) {
+            contexto_.estado_nav = Estado::Acoplando;
+        }
+    }
+
+    StatusRobo Robo::ler_status() const {
+        std::lock_guard<std::mutex> lock(contexto_.mtx);
+        return contexto_.status;
     }
 }
