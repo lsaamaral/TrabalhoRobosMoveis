@@ -6,6 +6,7 @@ find_package(Threads REQUIRED)
 
 add_library(atrlib STATIC 
     src/mapa.cpp
+    src/hardware_falso.cpp
 )
 
 target_include_directories(atrlib PUBLIC include)
@@ -27,3 +28,7 @@ add_test(NAME TesteFila COMMAND teste_util)
 add_executable(teste_timer testes/teste_temporizador.cpp)
 target_link_libraries(teste_timer PRIVATE atrlib Threads::Threads)
 add_test(NAME TesteTimer COMMAND teste_timer)
+
+add_executable(teste_hardware testes/teste_hardware.cpp)
+target_link_libraries(teste_hardware PRIVATE atrlib Threads::Threads)
+add_test(NAME TesteHardware COMMAND teste_hardware)
