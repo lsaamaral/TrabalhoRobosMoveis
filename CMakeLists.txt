@@ -5,7 +5,7 @@ add_compile_options(-Wall -Wextra)
 find_package(Threads REQUIRED)
 
 add_library(atrlib STATIC 
-    src/main.cpp
+    src/mapa.cpp
 )
 
 target_include_directories(atrlib PUBLIC include)
@@ -13,3 +13,6 @@ target_link_libraries(atrlib PUBLIC Threads::Threads rt)
 
 add_executable(atr src/main.cpp)
 target_link_libraries(atr PRIVATE atrlib)
+
+add_executable(teste_mapa testes/teste_mapa.cpp)
+target_link_libraries(teste_mapa PRIVATE atrlib)

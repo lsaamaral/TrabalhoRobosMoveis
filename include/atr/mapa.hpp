@@ -1,4 +1,4 @@
-// mapa dO galpao em 2d. Baias, zonas, lugar de recarga e passagens pequenas
+// mapa do galpao em 2d. Baias, zonas, lugar de recarga e passagens pequenas
 //   x ->  0         7 8                 21 22 23 24      30 31
 //  y=0                                                  
 //         | baias 1..4 |   zona de transporte   | gates | zonas A..D

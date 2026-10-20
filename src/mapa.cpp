@@ -10,7 +10,7 @@ namespace atr {
     }
 
     MapaGalpao::MapaGalpao() : grade_(LARGURA * ALTURA, 0), corredores_(LARGURA * ALTURA, -1) {
-        // Funcao auxiliar para desenhar blocos retangulares de paredes (valor 1) ou espacos (0)
+        // Funcao auxiliar para desenhar blocos retangulares de paredes ou espacos
         auto retangulo = [&](int x0, int y0, int x1, int y1, uint8_t v) {
             for (int y = y0; y <= y1; y++) {
                 for (int x = x0; x <= x1; x++) {
@@ -43,18 +43,18 @@ namespace atr {
         // Parede dupla antes das zonas de entrega, contendo os 4 portoes
         retangulo(22, 1, 23, ALTURA - 2, 1);
         
-        retangulo(22, 2, 23, 3, 0);   marcar_corredor(0, 22, 2, 23, 3);    // Corredor 0 (Gate Zona A): cap 2 robos
-        retangulo(22, 7, 23, 7, 0);   marcar_corredor(1, 22, 7, 23, 7);    // Corredor 1 (Gate Zona B): cap 1 robô
-        retangulo(22, 11, 23, 13, 0); marcar_corredor(2, 22, 11, 23, 13); // Corredor 2 (Gate Zona C): cap 3 robôs
-        retangulo(22, 16, 23, 19, 0); marcar_corredor(3, 22, 16, 23, 19); // Corredor 3 (Gate Zona D): cap 4 robôs
+        retangulo(22, 2, 23, 3, 0);   marcar_corredor(0, 22, 2, 23, 3);    // Corredor 0: 2 robos
+        retangulo(22, 7, 23, 7, 0);   marcar_corredor(1, 22, 7, 23, 7);    // Corredor 1: 1 robo
+        retangulo(22, 11, 23, 13, 0); marcar_corredor(2, 22, 11, 23, 13); // Corredor 2: cap 3 robos
+        retangulo(22, 16, 23, 19, 0); marcar_corredor(3, 22, 16, 23, 19); // Corredor 3: cap 4 robos
 
-        // Sala de recarga (colunas 13 a 19, linhas 1 a 3) com porta de 2 células em (16..17, 4)
+        // Sala de recarga (colunas 13 a 19, linhas 1 a 3) com porta de 2 celulas em 16..17, 4
         retangulo(12, 1, 12, 4, 1); 
         retangulo(20, 1, 20, 4, 1); 
         retangulo(12, 4, 20, 4, 1);
-        retangulo(16, 4, 17, 4, 0);   marcar_corredor(4, 16, 4, 17, 4); // Corredor 4 (Porta recarga): cap 2 robos
+        retangulo(16, 4, 17, 4, 0);   marcar_corredor(4, 16, 4, 17, 4); // Corredor 4, porta recarga 2 robos
 
-        // Bloco central (obstaculo fisico) para forcar o desvio dos robos na zona de transporte central
+        // desvio dos robos na zona de transporte central
         retangulo(12, 8, 17, 12, 1);
     }
 
@@ -64,7 +64,7 @@ namespace atr {
 
     // Algoritmo de menor caminho
     std::vector<Ponto> MapaGalpao::caminho(Ponto de, Ponto para, int tamanho_grupo) const {
-        // Se o ponto de partida ou o destino forem invalidos, retorna caminho vazio
+        // ponto de partida ou o destino invalidos retorna caminho vazio
         if (!caminhavel(de.x, de.y) || !caminhavel(para.x, para.y)) return {};
 
         std::vector<int> anterior(LARGURA * ALTURA, -2);
@@ -76,7 +76,7 @@ namespace atr {
         anterior[inicio] = -1;
         fila.push_back(inicio);
 
-        // Vetores de direcao: direita, esquerda, baixo, cima
+        // Vetores de direcao direita, esquerda, baixo, cima
         const int dx[4] = {1, -1, 0, 0};
         const int dy[4] = {0, 0, 1, -1};
 
@@ -111,7 +111,7 @@ namespace atr {
         // Se nao encontrou caminho ate o destino
         if (anterior[destino] == -2) return {};
 
-        // Reconstroi o caminho de tras para frente (do destino ate a origem)
+        // Reconstroi o caminho de tras para frente
         std::vector<Ponto> rota;
         for (int atual = destino; atual != -1; atual = anterior[atual]) {
             rota.push_back({atual % LARGURA, atual / LARGURA});
@@ -161,7 +161,7 @@ namespace atr {
             }
         }
 
-        // Constroi a string final concatenando todas as linhas com quebra de linha (\n)
+        // Constroi a string final
         std::string saida;
         for (auto& linha : g) {
             saida += linha + "\n";
