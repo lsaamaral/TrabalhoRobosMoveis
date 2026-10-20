@@ -8,6 +8,8 @@ add_library(atrlib STATIC
     src/mapa.cpp
     src/hardware_falso.cpp
     src/robo.cpp
+    src/sistema.cpp
+    src/processos.cpp
 )
 
 target_include_directories(atrlib PUBLIC include)
@@ -37,3 +39,11 @@ add_test(NAME TesteHardware COMMAND teste_hardware)
 add_executable(teste_robo testes/teste_robo.cpp)
 target_link_libraries(teste_robo PRIVATE atrlib Threads::Threads)
 add_test(NAME TesteRobo COMMAND teste_robo)
+
+add_executable(teste_sistema testes/teste_sistema.cpp)
+target_link_libraries(teste_sistema PRIVATE atrlib Threads::Threads)
+add_test(NAME TesteSistema COMMAND teste_sistema)
+
+add_executable(teste_processos testes/teste_processos.cpp)
+target_link_libraries(teste_processos PRIVATE atrlib Threads::Threads)
+add_test(NAME TesteProcessos COMMAND teste_processos)

@@ -1,16 +1,20 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
-#include "atr/robo.hpp"
+#include "atr/sistema.hpp"
 
 int main() {
-    atr::Robo robo(0, atr::obter_mapa().ponto_inicial(0));
-    robo.enviar_destino(atr::obter_mapa().pega_baia(0, 0));
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    const auto status = robo.ler_status();
-    std::cout << "robo " << robo.id() << " estado="
-              << atr::to_string(status.estado)
-              << " posicao=(" << status.pos.x << "," << status.pos.y
-              << ") bateria=" << status.bateria << "%\n";
+    atr::ColetorDados coletor("eventos.csv");
+    atr::GestorRobosProcessos gestor(coletor);
+    gestor.disponibilizar_robo({8, 19});
+    atr::OrganizadorLogisticaIPC organizador(gestor, coletor);
+    organizador.adicionar_carga({1, 0, 0, 1});
+    for (int i = 0; i < 100 && !organizador.carga_concluida(1); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    std::cout << "robos=" << gestor.quantidade()
+              << " cargas_pendentes=" << organizador.cargas_pendentes()
+              << " carga_1_concluida=" << organizador.carga_concluida(1)
+              << " eventos=" << coletor.historico().size() << '\n';
     return 0;
 }

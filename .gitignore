@@ -1,5 +1,8 @@
 build/
 logs/
 *.o
+eventos.csv
+teste_eventos.csv
+teste_processos.csv
 __pycache__/
 .vscode/
