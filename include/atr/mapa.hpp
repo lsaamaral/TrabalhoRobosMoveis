@@ -87,7 +87,7 @@ namespace atr {
             std::string renderizar(const std::vector<Ponto>& robos = {}) const;
         private:
             std::vector<uint8_t> grade_; // guarda o desenho do galpao, onde tem parede ou nao
-            std::vector<uint8_t> corredores_; // posicao dos corredores
+            std::vector<int8_t> corredores_; // posicao dos corredores
     };
 
     const MapaGalpao& obter_mapa();
