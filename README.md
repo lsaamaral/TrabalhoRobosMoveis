@@ -92,5 +92,5 @@ flowchart TB
 ```
 
 `ContextoRobo::mtx` protege os dados compartilhados dentro de cada processo. A thread de navegação possui periodo de 50 ms e a thread de status possui período de 100 ms.
-`HardwareFalso` possui uma thread própria, executada a cada 100 ms, e protege suas entradas e saidas com outro mutex. Os pipes carregam estruturas binárias de tamanho fixo: comandos descem do Organizador para o filho e os status sobem para o processo pai.
+`HardwareFalso` possui uma thread própria, executada a cada 100 ms, e protege suas entradas e saidas com outro mutex. Os pipes carregam estruturas binárias de tamanho fixo, comandos descem do Organizador para o filho e os status sobem para o processo pai.
 
