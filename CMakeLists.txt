@@ -14,5 +14,16 @@ target_link_libraries(atrlib PUBLIC Threads::Threads rt)
 add_executable(atr src/main.cpp)
 target_link_libraries(atr PRIVATE atrlib)
 
+enable_testing()
+
 add_executable(teste_mapa testes/teste_mapa.cpp)
 target_link_libraries(teste_mapa PRIVATE atrlib)
+add_test(NAME TesteMapa COMMAND teste_mapa)
+
+add_executable(teste_util testes/teste_fila.cpp)
+target_link_libraries(teste_util PRIVATE atrlib Threads::Threads)
+add_test(NAME TesteFila COMMAND teste_util)
+
+add_executable(teste_timer testes/teste_temporizador.cpp)
+target_link_libraries(teste_timer PRIVATE atrlib Threads::Threads)
+add_test(NAME TesteTimer COMMAND teste_timer)

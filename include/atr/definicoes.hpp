@@ -9,6 +9,7 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 
 namespace atr {
 
@@ -112,10 +113,10 @@ namespace atr {
         return o;
     }
     inline void logf(const char* tag, const std::string& msg) {
-        std::clog << ts_iso(agora_ms()) << " [" 
-                << std::setw(5) << getpid() << "] " 
-                << std::setw(-9) << tag << " " 
-                << msg << "\n";
+        std::ostringstream o;
+        o << ts_iso(agora_ms()) << " [" << std::setw(5) << getpid() << "] "
+        << std::left << std::setw(9) << tag << " " << msg << "\n";
+        std::clog << o.str();
     }
 
     inline char letra_zona(int z) {
