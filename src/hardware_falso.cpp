@@ -2,6 +2,7 @@
 #include "atr/mapa.hpp"
 #include "atr/comum.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace atr {
 
@@ -19,7 +20,8 @@ namespace atr {
 
     EntradasHw HardwareFalso::ler_entradas() {
         std::lock_guard<std::mutex> lock(mtx_);
-        return {pos_, carga_atracada_, bateria_, falha_};
+        int bat_arredondada = static_cast<int>(std::round(bateria_int_));
+        return {pos_, carga_atracada_, bat_arredondada, falha_};
     }
 
     void HardwareFalso::escrever_saidas(const SaidasHw& saidas) {
@@ -35,7 +37,7 @@ namespace atr {
 
     void HardwareFalso::ajustar_bateria(int nivel) {
         std::lock_guard<std::mutex> lock(mtx_);
-        bateria_ = std::clamp(nivel, 0, 100);
+        bateria_int_ = static_cast<double>(std::clamp(nivel, 0, 100));
     }
 
     void HardwareFalso::thread_simulador() {
@@ -61,7 +63,7 @@ namespace atr {
 
                 if (mapa.caminhavel(proxima.x, proxima.y)) {
                     pos_ = proxima;
-                    bateria_ = std::max(0, bateria_ - 1);
+                    bateria_int_ = std::max(0.0, bateria_int_ - 0.25);
                 }
             } else {
                 // Verifica se esta sobre um carregador para recarregar
@@ -73,7 +75,9 @@ namespace atr {
                     }
                 }
                 if (em_carregador) {
-                    bateria_ = std::min(100, bateria_ + 5);
+                    bateria_int_ = std::min(100.0, bateria_int_ + 1.0);
+                } else {
+                    bateria_int_ = std::max(0.0, bateria_int_ - 0.005);
                 }
             }
 

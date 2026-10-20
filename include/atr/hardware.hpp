@@ -47,7 +47,7 @@ namespace atr {
         Ponto sp_;
         bool acoplar_e_erguer_ = false;
         bool carga_atracada_ = false;
-        int bateria_ = 100;
+        double bateria_int_ = 100.0;
         bool falha_ = false;
 
         int ticks_acoplamento_ = 0;

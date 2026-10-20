@@ -7,6 +7,7 @@ find_package(Threads REQUIRED)
 add_library(atrlib STATIC 
     src/mapa.cpp
     src/hardware_falso.cpp
+    src/robo.cpp
 )
 
 target_include_directories(atrlib PUBLIC include)

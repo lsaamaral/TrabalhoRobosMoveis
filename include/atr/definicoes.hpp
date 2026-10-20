@@ -31,6 +31,7 @@ namespace atr {
     constexpr int BAT_BAIXA      = 20;
     constexpr int BAT_OK         = 95;
     constexpr int BAT_MIN_TAREFA = 35;
+    constexpr int BAT_CHEIA      = 100;
 
     constexpr const char* NOME_MEM_COMP  = "/atr_fleet_shm";
     constexpr const char* FILA_RESPOSTAS = "/atr_reply";
