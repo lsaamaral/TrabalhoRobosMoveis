@@ -47,3 +47,6 @@ add_test(NAME TesteSistema COMMAND teste_sistema)
 add_executable(teste_processos testes/teste_processos.cpp)
 target_link_libraries(teste_processos PRIVATE atrlib Threads::Threads)
 add_test(NAME TesteProcessos COMMAND teste_processos)
+
+add_executable(atr_telemetria src/telemetria.cpp)
+target_link_libraries(atr_telemetria PRIVATE atrlib)

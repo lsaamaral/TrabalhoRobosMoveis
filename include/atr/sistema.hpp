@@ -149,7 +149,7 @@ namespace atr {
         };
 
         void executar();
-        bool grupo_na_posicao(const Tarefa& tarefa, Ponto destino);
+        bool grupo_na_posicao(const Tarefa& tarefa, bool na_baia);
         void registrar(TipoEvento tipo, const Tarefa& tarefa, const char* texto);
 
         GestorRobosProcessos& gestor_;

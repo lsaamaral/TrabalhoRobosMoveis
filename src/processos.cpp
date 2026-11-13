@@ -185,15 +185,29 @@ namespace atr {
         return fila_.size() + ativas_.size();
     }
 
-    bool OrganizadorLogisticaIPC::grupo_na_posicao(const Tarefa& tarefa, Ponto destino) {
-        for (int id : tarefa.robos) {
+
+    bool OrganizadorLogisticaIPC::grupo_na_posicao(
+        const Tarefa& tarefa, bool na_baia) {
+
+        const auto& mapa = obter_mapa();
+
+        for (std::size_t i = 0; i < tarefa.robos.size(); ++i) {
+            int id = tarefa.robos[i];
+
+            const Ponto destino = na_baia
+                ? mapa.pega_baia(tarefa.carga.baia, static_cast<int>(i))
+                : mapa.solta_zona(tarefa.carga.zona, static_cast<int>(i));
+
             ProcessoRobo* robo = gestor_.obter_robo(id);
+
             if (robo == nullptr || robo->ler_status().pos != destino) {
                 return false;
             }
         }
+
         return true;
     }
+
 
     void OrganizadorLogisticaIPC::registrar(TipoEvento tipo, const Tarefa& tarefa, const char* texto) {
         int mascara = 0;
@@ -213,50 +227,105 @@ namespace atr {
         coletor_.registrar(evento);
     }
 
+
     void OrganizadorLogisticaIPC::executar() {
         TemporizadorPeriodico timer(T_ORGANIZADOR_MS);
+
         while (!parar_) {
             timer.esperar();
+
             std::lock_guard<std::mutex> lock(mtx_);
+
             if (ativas_.empty() && !fila_.empty()) {
                 Tarefa tarefa;
                 tarefa.carga = fila_.front();
                 fila_.pop_front();
+
                 for (int id : gestor_.ids()) {
                     ProcessoRobo* robo = gestor_.obter_robo(id);
-                    if (robo != nullptr && robo->ler_status().estado == Estado::Disponivel) {
+
+                    if (robo != nullptr &&
+                        robo->ler_status().estado == Estado::Disponivel) {
+
                         tarefa.robos.push_back(id);
-                        if (static_cast<int>(tarefa.robos.size()) == tarefa.carga.tamanho) break;
+
+                        if (static_cast<int>(tarefa.robos.size()) ==
+                            tarefa.carga.tamanho) {
+                            break;
+                        }
                     }
                 }
-                if (static_cast<int>(tarefa.robos.size()) == tarefa.carga.tamanho) {
-                    const Ponto baia = obter_mapa().pega_baia(tarefa.carga.baia, 0);
-                    for (int id : tarefa.robos)
-                        gestor_.obter_robo(id)->enviar_comando({baia, true, false, false});
-                    registrar(TipoEvento::TarefaCriada, tarefa, "tarefa criada por IPC");
+
+                if (static_cast<int>(tarefa.robos.size()) ==
+                    tarefa.carga.tamanho) {
+
+                    // Cada robo recebe uma posicao diferente na baia
+                    for (std::size_t i = 0; i < tarefa.robos.size(); ++i) {
+                        const Ponto baia = obter_mapa().pega_baia(
+                            tarefa.carga.baia, static_cast<int>(i));
+
+                        gestor_.obter_robo(tarefa.robos[i])
+                            ->enviar_comando({ baia, true, false, false });
+                    }
+
+                    registrar(TipoEvento::TarefaCriada, tarefa,
+                        "tarefa criada por IPC");
+
                     ativas_.push_back(std::move(tarefa));
-                } else {
+
+                }
+                else {
                     fila_.push_front(tarefa.carga);
                 }
             }
-            if (ativas_.empty()) continue;
+
+            if (ativas_.empty()) {
+                continue;
+            }
+
             Tarefa& tarefa = ativas_.front();
-            const Ponto baia = obter_mapa().pega_baia(tarefa.carga.baia, 0);
-            const Ponto zona = obter_mapa().solta_zona(tarefa.carga.zona, 0);
-            if (tarefa.fase == 0 && grupo_na_posicao(tarefa, baia)) {
-                for (int id : tarefa.robos)
-                    gestor_.obter_robo(id)->enviar_comando({baia, true, true, false});
+
+            // Aguarda todos os robos chegarem a baia
+            if (tarefa.fase == 0 && grupo_na_posicao(tarefa, true)) {
+
+                for (std::size_t i = 0; i < tarefa.robos.size(); ++i) {
+                    const Ponto baia = obter_mapa().pega_baia(
+                        tarefa.carga.baia, static_cast<int>(i));
+
+                    gestor_.obter_robo(tarefa.robos[i])
+                        ->enviar_comando({ baia, true, true, false });
+                }
+
                 tarefa.fase = 1;
-                registrar(TipoEvento::PegouCarga, tarefa, "grupo acoplado por IPC");
-            } else if (tarefa.fase == 1) {
-                for (int id : tarefa.robos)
-                    gestor_.obter_robo(id)->enviar_comando({zona, true, false, false});
+
+                registrar(TipoEvento::PegouCarga, tarefa,
+                    "grupo acoplado por IPC");
+
+            }
+            else if (tarefa.fase == 1) {
+
+                // Cada robo recebe sua posicao na zona de entrega
+                for (std::size_t i = 0; i < tarefa.robos.size(); ++i) {
+                    const Ponto zona = obter_mapa().solta_zona(
+                        tarefa.carga.zona, static_cast<int>(i));
+
+                    gestor_.obter_robo(tarefa.robos[i])
+                        ->enviar_comando({ zona, true, false, false });
+                }
+
                 tarefa.fase = 2;
-            } else if (tarefa.fase == 2 && grupo_na_posicao(tarefa, zona)) {
-                registrar(TipoEvento::EntregouCarga, tarefa, "carga entregue por IPC");
+
+            }
+            else if (tarefa.fase == 2 &&
+                grupo_na_posicao(tarefa, false)) {
+
+                registrar(TipoEvento::EntregouCarga, tarefa,
+                    "carga entregue por IPC");
+
                 concluidas_.push_back(tarefa.carga.id);
                 ativas_.clear();
             }
         }
     }
+
 }

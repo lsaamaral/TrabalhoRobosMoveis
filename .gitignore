@@ -6,3 +6,18 @@ teste_eventos.csv
 teste_processos.csv
 __pycache__/
 .vscode/
+
+# Visual Studio
+.vs/
+
+# Arquivos gerados durante a compilacao
+build/
+out/
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs e eventos gerados pelo simulador
+eventos.csv
+eventos_visual.csv
