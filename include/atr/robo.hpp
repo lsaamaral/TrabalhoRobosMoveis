@@ -13,6 +13,7 @@ namespace atr {
         Ponto pos{};
         int bateria = 0;
         bool falha = false;
+        bool carga_atracada = false;
         int distancia = 0;
     };
 
@@ -23,6 +24,7 @@ namespace atr {
         bool falha = false;
         bool pedir_recarga = false; // Indica se o sistema pediu ida ao carregador
         Ponto destino_recarga{};    // Coordenadas do carregador mais proximo
+        Ponto ponto_inicial{};
         Ponto destino{};            // Destino solicitado pelo organizador
         bool tem_destino = false;
         bool acoplar = false;

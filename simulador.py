@@ -238,7 +238,7 @@ def iniciar_backend(usar_mqtt=False):
             *(["--mqtt"] if usar_mqtt else [])
         ],
         cwd=str(RAIZ),
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL if usar_mqtt else subprocess.PIPE,
         stdin=subprocess.PIPE,
         stderr=None,
         text=True,

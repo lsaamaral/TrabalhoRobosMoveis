@@ -2,6 +2,9 @@
 
 #include <netdb.h>
 #include <fcntl.h>
+#include <algorithm>
+#include <cerrno>
+#include <poll.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -14,6 +17,14 @@ namespace atr {
             const auto* bytes = static_cast<const unsigned char*>(dados);
             while (tamanho > 0) {
                 const ssize_t enviados = send(socket, bytes, tamanho, MSG_NOSIGNAL);
+                if (enviados < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                    pollfd pronto{socket, POLLOUT, 0};
+                    if (poll(&pronto, 1, 1000) <= 0) {
+                        throw std::runtime_error("timeout ao enviar pacote MQTT");
+                    }
+                    continue;
+                }
+                if (enviados < 0 && errno == EINTR) continue;
                 if (enviados <= 0) {
                     throw std::runtime_error("falha ao enviar pacote MQTT");
                 }
@@ -56,13 +67,25 @@ namespace atr {
 
     MqttPublicador::MqttPublicador(
         std::string host, uint16_t port, std::string topico)
-        : topico_(std::move(topico)) {
+        : host_(std::move(host)), port_(port), topico_(std::move(topico)) {
+        conectar();
+    }
+
+    void MqttPublicador::fechar_socket() {
+        if (socket_ >= 0) {
+            close(socket_);
+            socket_ = -1;
+        }
+        recebimento_.clear();
+    }
+
+    void MqttPublicador::conectar() {
         addrinfo criterios{};
         criterios.ai_socktype = SOCK_STREAM;
         criterios.ai_family = AF_UNSPEC;
         addrinfo* enderecos = nullptr;
-        const std::string porta = std::to_string(port);
-        if (getaddrinfo(host.c_str(), porta.c_str(), &criterios, &enderecos) != 0) {
+        const std::string porta = std::to_string(port_);
+        if (getaddrinfo(host_.c_str(), porta.c_str(), &criterios, &enderecos) != 0) {
             throw std::runtime_error("nao foi possivel resolver o host MQTT");
         }
 
@@ -116,6 +139,14 @@ namespace atr {
         fcntl(socket_, F_SETFL, flags | O_NONBLOCK);
     }
 
+    void MqttPublicador::reconectar() {
+        fechar_socket();
+        conectar();
+        for (const auto& topico : topicos_) {
+            enviar_assinatura(topico);
+        }
+    }
+
     MqttPublicador::~MqttPublicador() {
         if (socket_ >= 0) {
             const unsigned char desconectar[2] = {0xe0, 0x00};
@@ -140,6 +171,13 @@ namespace atr {
     }
 
     void MqttPublicador::assinar(const std::string& topico) {
+        if (std::find(topicos_.begin(), topicos_.end(), topico) == topicos_.end()) {
+            topicos_.push_back(topico);
+        }
+        enviar_assinatura(topico);
+    }
+
+    void MqttPublicador::enviar_assinatura(const std::string& topico) {
         std::vector<unsigned char> corpo{0, 1};
         adicionar_utf8(corpo, topico);
         corpo.push_back(0);
@@ -151,10 +189,20 @@ namespace atr {
     }
 
     std::vector<std::string> MqttPublicador::receber() {
+        if (socket_ < 0) return {};
         std::vector<unsigned char> bloco(4096);
         while (true) {
             const ssize_t recebidos = recv(socket_, bloco.data(), bloco.size(), 0);
-            if (recebidos <= 0) break;
+            if (recebidos < 0 &&
+                (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+                break;
+            }
+            if (recebidos == 0) {
+                throw std::runtime_error("broker MQTT encerrou a conexao");
+            }
+            if (recebidos < 0) {
+                throw std::runtime_error("falha ao receber pacote MQTT");
+            }
             recebimento_.insert(recebimento_.end(), bloco.begin(),
                                 bloco.begin() + recebidos);
         }

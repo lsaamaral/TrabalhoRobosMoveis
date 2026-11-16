@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <algorithm>
 #include "atr/sistema.hpp"
 #include "atr/mapa.hpp"
@@ -117,17 +118,36 @@ int main(int argc, char** argv) {
 
     // Uma linha JSON por amostragem; sem dependencia de biblioteca externa.
     // O backend continua responsavel pelo planejamento e pelos movimentos.
+    std::string entrada_buffer;
     while (true) {
         pollfd entrada{STDIN_FILENO, POLLIN, 0};
         if (poll(&entrada, 1, 0) > 0 && (entrada.revents & POLLIN)) {
-            std::string linha;
-            if (std::getline(std::cin, linha)) {
-                processar_comando(linha);
+            char buffer[4096];
+            const ssize_t lidos = read(STDIN_FILENO, buffer, sizeof(buffer));
+            if (lidos > 0) {
+                entrada_buffer.append(buffer, static_cast<std::size_t>(lidos));
+                std::size_t fim = 0;
+                while ((fim = entrada_buffer.find('\n')) != std::string::npos) {
+                    processar_comando(entrada_buffer.substr(0, fim));
+                    entrada_buffer.erase(0, fim + 1);
+                }
             }
         }
         if (mqtt) {
-            for (const auto& comando : mqtt->receber()) {
-                processar_comando(comando);
+            try {
+                for (const auto& comando : mqtt->receber()) {
+                    processar_comando(comando);
+                }
+            } catch (const std::exception& erro) {
+                std::cerr << "MQTT perdeu a conexao ao receber; "
+                             "tentando reconectar: "
+                          << erro.what() << '\n';
+                try {
+                    mqtt->reconectar();
+                } catch (const std::exception& reconexao) {
+                    std::cerr << "Reconexao MQTT falhou: "
+                              << reconexao.what() << '\n';
+                }
             }
         }
 
@@ -202,13 +222,19 @@ int main(int argc, char** argv) {
         }
         linha << "]}";
         const std::string payload = linha.str();
-        std::cout << payload << std::endl;
+        if (!mqtt) std::cout << payload << std::endl;
         if (mqtt) {
             try {
                 mqtt->publicar(payload);
             } catch (const std::exception& erro) {
-                std::cerr << "MQTT perdeu a conexao; nova tentativa automatica: "
+                std::cerr << "MQTT perdeu a conexao; tentando reconectar: "
                           << erro.what() << '\n';
+                try {
+                    mqtt->reconectar();
+                } catch (const std::exception& reconexao) {
+                    std::cerr << "Reconexao MQTT falhou: "
+                              << reconexao.what() << '\n';
+                }
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

@@ -1,9 +1,11 @@
 #include <chrono>
 #include <iostream>
+#include <csignal>
 #include <thread>
 #include "atr/sistema.hpp"
 
 int main() {
+    std::signal(SIGPIPE, SIG_IGN);
     atr::ColetorDados coletor("eventos.csv");
     atr::GestorRobosProcessos gestor(coletor);
     gestor.disponibilizar_robo({8, 19});

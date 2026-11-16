@@ -2,10 +2,13 @@
 #include "atr/sistema.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <fcntl.h>
 #include <poll.h>
 #include <stdexcept>
+#include <signal.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 namespace atr {
@@ -24,9 +27,16 @@ namespace atr {
         }
 
         void executar_robo(int comando_fd, int status_fd, Ponto inicial, ControleTrafego* trafego, int id) {
+            prctl(PR_SET_PDEATHSIG, SIGTERM);
             HardwareFalso hardware(inicial, trafego, id);
             ContextoRobo contexto;
             contexto.status.pos = inicial;
+            contexto.ponto_inicial = inicial;
+
+            const int flags = fcntl(status_fd, F_GETFL, 0);
+            if (flags >= 0) {
+                fcntl(status_fd, F_SETFL, flags | O_NONBLOCK);
+            }
 
             std::atomic<bool> parar{ false };
 
@@ -99,10 +109,19 @@ namespace atr {
                 {
                     std::lock_guard<std::mutex> lock(contexto.mtx);
                     resposta.status = contexto.status;
+                    resposta.carga_atracada = contexto.status.carga_atracada;
                 }
 
-                if (write(status_fd, &resposta, sizeof(resposta)) !=
-                    static_cast<ssize_t>(sizeof(resposta))) {
+                const ssize_t escrito = write(
+                    status_fd, &resposta, sizeof(resposta)
+                );
+                if (escrito < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                    continue;
+                }
+                if (escrito < 0 && errno == EINTR) {
+                    continue;
+                }
+                if (escrito != static_cast<ssize_t>(sizeof(resposta))) {
                     break;
                 }
             }
@@ -158,6 +177,8 @@ namespace atr {
         comando_fd_ = comandos[1];
         status_fd_ = status[0];
 
+        const int comando_flags = fcntl(comando_fd_, F_GETFL, 0);
+        fcntl(comando_fd_, F_SETFL, comando_flags | O_NONBLOCK);
         const int flags = fcntl(status_fd_, F_GETFL, 0);
         fcntl(status_fd_, F_SETFL, flags | O_NONBLOCK);
     }
@@ -167,7 +188,10 @@ namespace atr {
             return;
         }
 
-        enviar_comando({ {}, false, false, true });
+        try {
+            enviar_comando({ {}, false, false, true });
+        } catch (const std::exception&) {
+        }
 
         close(comando_fd_);
         close(status_fd_);
@@ -177,8 +201,14 @@ namespace atr {
     }
 
     void ProcessoRobo::enviar_comando(const ComandoRoboIPC& comando) {
-        if (write(comando_fd_, &comando, sizeof(comando)) !=
-            static_cast<ssize_t>(sizeof(comando))) {
+        const ssize_t escrito = write(comando_fd_, &comando, sizeof(comando));
+        if (escrito < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            throw std::runtime_error("fila de comandos IPC cheia");
+        }
+        if (escrito < 0 && errno == EINTR) {
+            throw std::runtime_error("envio de comando IPC interrompido");
+        }
+        if (escrito != static_cast<ssize_t>(sizeof(comando))) {
             throw std::runtime_error("falha ao enviar comando por IPC");
         }
     }
@@ -229,6 +259,7 @@ namespace atr {
 
             std::lock_guard<std::mutex> lock(mtx_);
             ultimo_status_ = resposta.status;
+            ultimo_status_.carga_atracada = resposta.carga_atracada;
         }
 
         std::lock_guard<std::mutex> lock(mtx_);
@@ -450,54 +481,65 @@ namespace atr {
 
             if (ativas_.empty() && !fila_.empty()) {
                 Tarefa tarefa;
-                tarefa.carga = fila_.front();
-                fila_.pop_front();
+                auto carga_it = fila_.end();
 
-                for (int id : gestor_.ids()) {
-                    ProcessoRobo* robo = gestor_.obter_robo(id);
+                for (auto it = fila_.begin(); it != fila_.end(); ++it) {
+                    int disponiveis = 0;
+                    for (int id : gestor_.ids()) {
+                        ProcessoRobo* robo = gestor_.obter_robo(id);
 
-                    if (robo != nullptr &&
-                        robo->ler_status().estado ==
-                        Estado::Disponivel) {
-
-                        tarefa.robos.push_back(id);
-
-                        if (static_cast<int>(tarefa.robos.size()) ==
-                            tarefa.carga.tamanho) {
-                            break;
+                        if (robo != nullptr &&
+                            robo->ler_status().estado == Estado::Disponivel) {
+                            ++disponiveis;
                         }
                     }
+                    if (disponiveis >= it->tamanho) {
+                        carga_it = it;
+                        break;
+                    }
                 }
 
-                if (static_cast<int>(tarefa.robos.size()) ==
-                    tarefa.carga.tamanho) {
+                if (carga_it != fila_.end()) {
+                    tarefa.carga = *carga_it;
+                    fila_.erase(carga_it);
 
-                    // Cada robo recebe uma posicao
-                    // diferente na baia de coleta.
-                    for (std::size_t i = 0;
-                        i < tarefa.robos.size(); ++i) {
+                    for (int id : gestor_.ids()) {
+                        ProcessoRobo* robo = gestor_.obter_robo(id);
 
-                        const Ponto baia = obter_mapa().pega_baia(
-                            tarefa.carga.baia,
-                            static_cast<int>(i)
-                        );
-
-                        gestor_.obter_robo(tarefa.robos[i])
-                            ->enviar_comando({
-                                baia, true, false, false
-                                });
+                        if (robo != nullptr &&
+                            robo->ler_status().estado == Estado::Disponivel) {
+                            tarefa.robos.push_back(id);
+                            if (static_cast<int>(tarefa.robos.size()) ==
+                                tarefa.carga.tamanho) {
+                                break;
+                            }
+                        }
                     }
 
-                    registrar(
-                        TipoEvento::TarefaCriada,
-                        tarefa,
-                        "tarefa criada por IPC"
-                    );
+                    if (static_cast<int>(tarefa.robos.size()) ==
+                        tarefa.carga.tamanho) {
 
-                    ativas_.push_back(std::move(tarefa));
-                }
-                else {
-                    fila_.push_front(tarefa.carga);
+                        // Cada robo recebe uma posicao diferente na baia.
+                        for (std::size_t i = 0;
+                            i < tarefa.robos.size(); ++i) {
+                            const Ponto baia = obter_mapa().pega_baia(
+                                tarefa.carga.baia,
+                                static_cast<int>(i)
+                            );
+                            gestor_.obter_robo(tarefa.robos[i])
+                                ->enviar_comando({
+                                    baia, true, false, false
+                                });
+                        }
+
+                        registrar(
+                            TipoEvento::TarefaCriada,
+                            tarefa,
+                            "tarefa criada por IPC"
+                        );
+
+                        ativas_.push_back(std::move(tarefa));
+                    }
                 }
             }
 
@@ -521,7 +563,8 @@ namespace atr {
 
                 if (status.falha ||
                     status.estado == Estado::Offline ||
-                    status.estado == Estado::Manual) {
+                    status.estado == Estado::Manual ||
+                    status.estado == Estado::IndoRecarga) {
 
                     interrompida = true;
                     break;
@@ -554,7 +597,7 @@ namespace atr {
                     "tarefa abortada por falha ou comando manual"
                 );
 
-                fila_.push_front(tarefa.carga);
+                fila_.push_back(tarefa.carga);
                 ativas_.clear();
 
                 continue;
@@ -564,28 +607,36 @@ namespace atr {
             // antes do acoplamento.
             if (tarefa.fase == 0 &&
                 grupo_na_posicao(tarefa, true)) {
-
-                for (std::size_t i = 0;
-                    i < tarefa.robos.size(); ++i) {
-
-                    const Ponto baia = obter_mapa().pega_baia(
-                        tarefa.carga.baia,
-                        static_cast<int>(i)
-                    );
-
-                    gestor_.obter_robo(tarefa.robos[i])
-                        ->enviar_comando({
-                            baia, true, true, false
-                            });
+                bool acoplada = true;
+                for (int id : tarefa.robos) {
+                    ProcessoRobo* robo = gestor_.obter_robo(id);
+                    if (robo == nullptr || !robo->ler_status().carga_atracada) {
+                        acoplada = false;
+                    }
                 }
 
-                tarefa.fase = 1;
+                if (!acoplada) {
+                    for (std::size_t i = 0; i < tarefa.robos.size(); ++i) {
 
-                registrar(
-                    TipoEvento::PegouCarga,
-                    tarefa,
-                    "grupo acoplado por IPC"
-                );
+                        const Ponto baia = obter_mapa().pega_baia(
+                            tarefa.carga.baia,
+                            static_cast<int>(i)
+                        );
+
+                        gestor_.obter_robo(tarefa.robos[i])
+                            ->enviar_comando({
+                                baia, true, true, false
+                                });
+                    }
+                } else {
+                    tarefa.fase = 1;
+
+                    registrar(
+                        TipoEvento::PegouCarga,
+                        tarefa,
+                        "grupo acoplado por IPC"
+                    );
+                }
             }
             else if (tarefa.fase == 1) {
 
@@ -601,7 +652,7 @@ namespace atr {
 
                     gestor_.obter_robo(tarefa.robos[i])
                         ->enviar_comando({
-                            zona, true, false, false
+                        zona, true, true, false
                             });
                 }
 
@@ -609,6 +660,11 @@ namespace atr {
             }
             else if (tarefa.fase == 2 &&
                 grupo_na_posicao(tarefa, false)) {
+                for (int id : tarefa.robos) {
+                    gestor_.obter_robo(id)->enviar_comando({
+                        obter_mapa().ponto_inicial(id), true, false, false
+                    });
+                }
 
                 registrar(
                     TipoEvento::EntregouCarga,

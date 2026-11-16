@@ -51,6 +51,11 @@ namespace atr {
             rc = pthread_mutexattr_setpshared(
                 &attr, PTHREAD_PROCESS_SHARED
             );
+        }
+        if (rc == 0) {
+            rc = pthread_mutexattr_setrobust(
+                &attr, PTHREAD_MUTEX_ROBUST
+            );
 
             if (rc == 0) {
                 rc = pthread_mutex_init(&dados_->mutex, &attr);
@@ -75,9 +80,15 @@ namespace atr {
     }
 
     void ControleTrafego::travar() const {
-        exigir(
-            pthread_mutex_lock(&dados_->mutex), "lock"
-        );
+        int rc = pthread_mutex_lock(&dados_->mutex);
+        if (rc == EOWNERDEAD) {
+            exigir(
+                pthread_mutex_consistent(&dados_->mutex),
+                "mutex compartilhado inconsistente"
+            );
+            rc = 0;
+        }
+        exigir(rc, "lock");
     }
 
     void ControleTrafego::destravar() const {

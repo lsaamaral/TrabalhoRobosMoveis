@@ -19,8 +19,7 @@ namespace atr {
 
             {
                 std::lock_guard<std::mutex> lock(ctx.mtx);
-                saidas.acoplar_e_erguer = ctx.acoplar &&
-                    ctx.estado_nav == Estado::Acoplando;
+                saidas.acoplar_e_erguer = ctx.acoplar;
 
                 Ponto destino = entradas.posicao_atual;
                 if (ctx.pedir_recarga) {
@@ -36,6 +35,9 @@ namespace atr {
                         ctx.estado_nav = ctx.modo_manual
                             ? Estado::Manual : Estado::IndoParaBaia;
                     }
+                } else {
+                    ctx.estado_nav = ctx.modo_manual
+                        ? Estado::Manual : Estado::Disponivel;
                 }
 
                 if (!entradas.falha && entradas.posicao_atual != destino) {
@@ -116,16 +118,42 @@ namespace atr {
 
                 // Decisao de recarga
                 bool condicao_precisa_recarregar = (entradas.bateria <= BAT_BAIXA) || 
-                    ((ctx.estado_nav == Estado::Disponivel) && (entradas.bateria < BAT_MIN_TAREFA));
+                    ((ctx.estado_nav == Estado::Disponivel) &&
+                     !ctx.tem_destino &&
+                     (entradas.bateria < BAT_MIN_TAREFA));
 
                 if (condicao_precisa_recarregar && !entradas.carga_atracada && !ctx.pedir_recarga) {
                     ctx.pedir_recarga = true;
-                    ctx.destino_recarga = mapa.carregador(indice_carregador_mais_proximo);
+                    const auto ocupadas = hw.celulas_ocupadas();
+                    int melhor_indice = -1;
+                    int menor_distancia_livre = 100000;
+                    for (int i = 0; i < NUM_RECARGA; ++i) {
+                        const Ponto candidato = mapa.carregador(i);
+                        const bool ocupado = std::find(
+                            ocupadas.begin(), ocupadas.end(), candidato
+                        ) != ocupadas.end();
+                        const int distancia = manhattan(
+                            entradas.posicao_atual, candidato
+                        );
+                        if (!ocupado && distancia < menor_distancia_livre) {
+                            menor_distancia_livre = distancia;
+                            melhor_indice = i;
+                        }
+                    }
+                    if (melhor_indice >= 0) {
+                        indice_carregador_mais_proximo = melhor_indice;
+                    }
+                    ctx.destino_recarga = mapa.carregador(
+                        indice_carregador_mais_proximo
+                    );
                     msgs.push_back("Bateria baixa (" + std::to_string(entradas.bateria) + "%). Solicitando recarga no carregador mais proximo.");
                 }
 
                 if (ctx.pedir_recarga && (entradas.bateria >= BAT_OK) && esta_no_carregador) {
                     ctx.pedir_recarga = false;
+                    ctx.tem_destino = false;
+                    ctx.estado_nav = ctx.modo_manual
+                        ? Estado::Manual : Estado::Disponivel;
                     msgs.push_back("Bateria recuperada (" + std::to_string(entradas.bateria) + "%). Recarga concluida.");
                 }
 
@@ -144,6 +172,7 @@ namespace atr {
                 ctx.status.pos = entradas.posicao_atual;
                 ctx.status.bateria = entradas.bateria;
                 ctx.status.falha = entradas.falha;
+                ctx.status.carga_atracada = entradas.carga_atracada;
                 ctx.status.distancia = distancia_total_percorrida;
             }
             // log fora do lock
@@ -154,6 +183,7 @@ namespace atr {
     }
 
     Robo::Robo(int id, Ponto pos_inicial) : id_(id), hardware_(pos_inicial) {
+            contexto_.ponto_inicial = pos_inicial;
         contexto_.status.pos = pos_inicial;
         thread_navegacao_ = std::thread(&loop_navegacao, std::ref(hardware_), std::ref(contexto_), std::ref(parar_));
         thread_status_ = std::thread(&loop_status, std::ref(hardware_), std::ref(contexto_), std::ref(parar_));

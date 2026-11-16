@@ -17,10 +17,10 @@ namespace atr {
         void publicar(const std::string& payload);
         void assinar(const std::string& topico);
         std::vector<std::string> receber();
+        void reconectar();
 
     private:
         void conectar();
-        void reconectar();
         void fechar_socket();
         void enviar_assinatura(const std::string& topico);
 
