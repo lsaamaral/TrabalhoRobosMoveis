@@ -39,9 +39,12 @@ namespace atr {
                 }
 
                 if (!entradas.falha && entradas.posicao_atual != destino) {
-                    const auto rota = mapa.caminho(entradas.posicao_atual, destino);
+                    const auto rota = mapa.caminho(entradas.posicao_atual, destino, 1,
+            hw.celulas_ocupadas());
                     if (rota.size() > 1) {
                         saidas.setpoint = rota[1];
+                    } else {
+                        ctx.estado_nav = Estado::AguardandoPassagem;
                     }
                 }
             }

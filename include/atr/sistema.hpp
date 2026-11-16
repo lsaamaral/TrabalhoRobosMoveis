@@ -9,6 +9,7 @@
 #include <vector>
 #include "comum.hpp"
 #include "robo.hpp"
+#include "trafego.hpp"
 
 namespace atr {
 
@@ -101,7 +102,7 @@ namespace atr {
 
     class ProcessoRobo {
     public:
-        ProcessoRobo(int id, Ponto posicao);
+        ProcessoRobo(int id, Ponto posicao, ControleTrafego& trafego);
         ~ProcessoRobo();
 
         ProcessoRobo(const ProcessoRobo&) = delete;
@@ -117,6 +118,7 @@ namespace atr {
 
     private:
         int id_;
+        ControleTrafego* trafego_ = nullptr;
         int comando_fd_ = -1;
         int status_fd_ = -1;
         int pid_ = -1;
@@ -137,6 +139,7 @@ namespace atr {
     private:
         ColetorDados& coletor_;
         mutable std::mutex mtx_;
+        ControleTrafego trafego_;
         std::vector<std::unique_ptr<ProcessoRobo>> robos_;
         int proximo_id_ = 0;
     };

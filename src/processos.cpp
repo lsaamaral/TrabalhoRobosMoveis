@@ -23,8 +23,8 @@ namespace atr {
             return evento;
         }
 
-        void executar_robo(int comando_fd, int status_fd, Ponto inicial) {
-            HardwareFalso hardware(inicial);
+        void executar_robo(int comando_fd, int status_fd, Ponto inicial, ControleTrafego* trafego, int id) {
+            HardwareFalso hardware(inicial, trafego, id);
             ContextoRobo contexto;
             contexto.status.pos = inicial;
 
@@ -124,7 +124,14 @@ namespace atr {
     // PROCESSO INDIVIDUAL DO ROBO
     // ======================================================
 
-    ProcessoRobo::ProcessoRobo(int id, Ponto posicao) : id_(id) {
+    ProcessoRobo::ProcessoRobo(
+    int id, Ponto posicao, ControleTrafego& trafego
+) : id_(id), trafego_(&trafego) {
+    if (!trafego_->registrar(id, posicao)) {
+        throw std::runtime_error(
+            "posicao inicial ocupada ou invalida"
+        );
+    }
         int comandos[2]{};
         int status[2]{};
 
@@ -142,7 +149,7 @@ namespace atr {
             close(comandos[1]);
             close(status[0]);
 
-            executar_robo(comandos[0], status[1], posicao);
+            executar_robo(comandos[0], status[1], posicao, trafego_, id_);
         }
 
         close(comandos[0]);
@@ -166,6 +173,7 @@ namespace atr {
         close(status_fd_);
 
         waitpid(pid_, nullptr, 0);
+        trafego_->remover(id_);
     }
 
     void ProcessoRobo::enviar_comando(const ComandoRoboIPC& comando) {
@@ -242,11 +250,10 @@ namespace atr {
     int GestorRobosProcessos::disponibilizar_robo(Ponto posicao) {
         std::lock_guard<std::mutex> lock(mtx_);
 
-        const int id = proximo_id_++;
+        const int id = proximo_id_;
 
-        robos_.push_back(
-            std::make_unique<ProcessoRobo>(id, posicao)
-        );
+        robos_.push_back(std::make_unique<ProcessoRobo>(id, posicao, trafego_));
+        ++proximo_id_;
 
         coletor_.registrar(
             evento_processo(

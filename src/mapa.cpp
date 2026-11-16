@@ -63,9 +63,26 @@ namespace atr {
     }
 
     // Algoritmo de menor caminho
-    std::vector<Ponto> MapaGalpao::caminho(Ponto de, Ponto para, int tamanho_grupo) const {
+    std::vector<Ponto> MapaGalpao::caminho(Ponto de, Ponto para, int tamanho_grupo,
+    const std::vector<Ponto>& bloqueadas) const {
         // ponto de partida ou o destino invalidos retorna caminho vazio
-        if (!caminhavel(de.x, de.y) || !caminhavel(para.x, para.y)) return {};
+        if (!caminhavel(de.x, de.y) ||
+            !caminhavel(para.x, para.y)) return {};
+
+        std::vector<uint8_t> obstaculos(
+            LARGURA * ALTURA, 0
+        );
+
+        for (const Ponto p : bloqueadas) {
+            if (p.x >= 0 && p.y >= 0 &&
+                p.x < LARGURA && p.y < ALTURA &&
+                p != de) {
+                obstaculos[p.y * LARGURA + p.x] = 1;
+            }
+        }
+
+        if (obstaculos[para.y * LARGURA + para.x])
+            return {};
 
         std::vector<int> anterior(LARGURA * ALTURA, -2);
         std::deque<int> fila;
@@ -92,7 +109,7 @@ namespace atr {
                 int ny = cy + dy[d];
 
                 // Verifica se a celula vizinha e caminhavel
-                if (!caminhavel(nx, ny)) continue;
+                if (!caminhavel(nx, ny) || obstaculos[ny * LARGURA + nx]) continue;
 
                 // Se for corredor, verifica se ele suporta o tamanho do grupo
                 int c = corredor_em(nx, ny);

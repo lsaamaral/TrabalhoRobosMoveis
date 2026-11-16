@@ -11,6 +11,7 @@ add_library(atrlib STATIC
     src/sistema.cpp
     src/processos.cpp
     src/mqtt.cpp
+    src/trafego.cpp
 )
 
 target_include_directories(atrlib PUBLIC include)
@@ -54,3 +55,7 @@ target_link_libraries(atr_telemetria PRIVATE atrlib)
 
 add_executable(benchmark_escalabilidade testes/benchmark_escalabilidade.cpp)
 target_link_libraries(benchmark_escalabilidade PRIVATE atrlib)
+
+add_executable(teste_trafego testes/teste_trafego.cpp)
+target_link_libraries(teste_trafego PRIVATE atrlib)
+add_test(NAME TesteTrafego COMMAND teste_trafego)

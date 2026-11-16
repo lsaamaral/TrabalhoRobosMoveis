@@ -79,7 +79,8 @@ namespace atr {
             /// @param para onde o robo precisa ir
             /// @param tamanho_grupo quantos robos fazem parte dessa tarefa
             /// @return lista de coordenadas com a rota que o robo precisa seguir 
-            std::vector<Ponto> caminho(Ponto de, Ponto para, int tamanho_grupo = 1) const;
+            std::vector<Ponto> caminho(Ponto de, Ponto para, int tamanho_grupo = 1,
+    const std::vector<Ponto>& bloqueadas = {}) const;
 
             /// @brief mostrar o mapa no terminal
             /// @param robos 

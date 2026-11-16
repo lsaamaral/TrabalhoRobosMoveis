@@ -1,6 +1,8 @@
 #pragma once
 #include "definicoes.hpp"
 #include "mapa.hpp"
+#include "trafego.hpp"
+#include <vector>
 #include <mutex>
 #include <thread>
 #include <atomic>
@@ -23,6 +25,9 @@ namespace atr {
     /// @brief definir fronteira de hardware
     class InterfaceHardware {
         public:
+            virtual std::vector<Ponto> celulas_ocupadas() const {
+                return {};
+            }
             virtual ~InterfaceHardware() = default;
             virtual EntradasHw ler_entradas() = 0;
             virtual void escrever_saidas(const SaidasHw& saidas) = 0;
@@ -30,7 +35,11 @@ namespace atr {
 
     class HardwareFalso : public InterfaceHardware {
     public:
-        explicit HardwareFalso(Ponto pos_inicial);
+        explicit HardwareFalso(
+            Ponto pos_inicial,
+            ControleTrafego* trafego = nullptr,
+            int id = -1
+        );
         ~HardwareFalso() override;
 
         EntradasHw ler_entradas() override;
@@ -38,10 +47,13 @@ namespace atr {
 
         void injetar_falha(bool falhar);
         void ajustar_bateria(int nivel);
+        std::vector<Ponto> celulas_ocupadas() const override;
 
     private:
         void thread_simulador();
 
+        ControleTrafego* trafego_ = nullptr;
+        int id_ = -1;
         std::mutex mtx_;
         Ponto pos_;
         Ponto sp_;

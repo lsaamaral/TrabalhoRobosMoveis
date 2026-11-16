@@ -6,10 +6,26 @@
 
 namespace atr {
 
-    HardwareFalso::HardwareFalso(Ponto pos_inicial) 
-        : pos_(pos_inicial), sp_(pos_inicial) {
-        worker_ = std::thread(&HardwareFalso::thread_simulador, this);
+    HardwareFalso::HardwareFalso(
+        Ponto pos_inicial,
+        ControleTrafego* trafego,
+        int id
+    )
+        : trafego_(trafego),
+        id_(id),
+        pos_(pos_inicial),
+        sp_(pos_inicial) {
+
+        worker_ = std::thread(
+            &HardwareFalso::thread_simulador, this
+        );
     }
+    std::vector<Ponto> HardwareFalso::celulas_ocupadas() const {
+        return trafego_
+            ? trafego_->ocupadas(id_)
+            : std::vector<Ponto>{};
+    }
+
 
     HardwareFalso::~HardwareFalso() {
         parar_ = true;
@@ -61,7 +77,10 @@ namespace atr {
                 else if (pos_.y < sp_.y) proxima.y++;
                 else if (pos_.y > sp_.y) proxima.y--;
 
-                if (mapa.caminhavel(proxima.x, proxima.y)) {
+                if (mapa.caminhavel(proxima.x, proxima.y) &&
+                    (!trafego_ ||
+                        trafego_->mover(id_, proxima) ==
+                        ResultadoMovimento::Aprovado)) {
                     pos_ = proxima;
                     bateria_int_ = std::max(0.0, bateria_int_ - 0.25);
                 }
