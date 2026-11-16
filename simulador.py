@@ -435,7 +435,9 @@ def executar():
                             mqtt
                         )
 
-                if pygame.K_1 <= evento.key <= pygame.K_9:
+                # Sem Ctrl, as teclas 1 a 9 selecionam os robos.
+                if (pygame.K_1 <= evento.key <= pygame.K_9
+                        and not (evento.mod & pygame.KMOD_CTRL)):
                     candidato = evento.key - pygame.K_1
                     if any(
                         item.get("id") == candidato
@@ -465,11 +467,35 @@ def executar():
                         mqtt
                     )
 
+                # C cria uma carga simples; Ctrl+1..4 define o tamanho.
+                tamanho_carga = None
                 if evento.key == pygame.K_c:
+                    tamanho_carga = 1
+                elif ((evento.mod & pygame.KMOD_CTRL)
+                      and pygame.K_1 <= evento.key <= pygame.K_4):
+                    tamanho_carga = evento.key - pygame.K_1 + 1
+
+                if tamanho_carga is not None:
+                    # Escolhe uma zona acessivel pelo portao com
+                    # capacidade nominal para o tamanho do grupo.
+                    if tamanho_carga == 2:
+                        zona_destino = 0  # A: capacidade 2
+                    elif tamanho_carga == 3:
+                        zona_destino = 2  # C: capacidade 3
+                    elif tamanho_carga == 4:
+                        zona_destino = 3  # D: capacidade 4
+                    else:
+                        zona_destino = proxima_zona
+
                     enviar_comando(
                         proc,
-                        f"caixa {proxima_baia} {proxima_zona} 1",
+                        f"caixa {proxima_baia} {zona_destino} {tamanho_carga}",
                         mqtt
+                    )
+                    print(
+                        f"Nova carga: baia {proxima_baia + 1}, "
+                        f"zona {chr(65 + zona_destino)}, "
+                        f"tamanho {tamanho_carga}"
                     )
                     proxima_baia = (proxima_baia + 1) % 4
                     proxima_zona = (proxima_zona + 1) % 4
@@ -785,9 +811,9 @@ def executar():
 
         texto(
             tela, fonte_peq,
-            "1-9: selecionar | M: manual | clique: destino | F: falha | "
-            "B: bateria 30% | C: nova caixa | N: novo robo | "
-            "G: grade | R: repetir | ESC: fechar",
+            "1-9: selecionar | Ctrl+1..4: carga 1..4 | C: caixa simples | "
+            "M: manual | clique: destino | F: falha | B: bateria 30% | "
+            "N: robo | G: grade | R: repetir | ESC: fechar",
             17, 727, SUAVE
         )
 
