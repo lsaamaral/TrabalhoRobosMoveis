@@ -30,9 +30,11 @@ namespace atr {
                     destino = ctx.destino;
                     if (entradas.posicao_atual == destino) {
                         ctx.estado_nav = saidas.acoplar_e_erguer
-                            ? Estado::Acoplando : Estado::Disponivel;
+                            ? Estado::Acoplando
+                            : (ctx.modo_manual ? Estado::Manual : Estado::Disponivel);
                     } else {
-                        ctx.estado_nav = Estado::IndoParaBaia;
+                        ctx.estado_nav = ctx.modo_manual
+                            ? Estado::Manual : Estado::IndoParaBaia;
                     }
                 }
 

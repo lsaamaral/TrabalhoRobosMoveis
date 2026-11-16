@@ -10,6 +10,7 @@ add_library(atrlib STATIC
     src/robo.cpp
     src/sistema.cpp
     src/processos.cpp
+    src/mqtt.cpp
 )
 
 target_include_directories(atrlib PUBLIC include)
@@ -50,3 +51,6 @@ add_test(NAME TesteProcessos COMMAND teste_processos)
 
 add_executable(atr_telemetria src/telemetria.cpp)
 target_link_libraries(atr_telemetria PRIVATE atrlib)
+
+add_executable(benchmark_escalabilidade testes/benchmark_escalabilidade.cpp)
+target_link_libraries(benchmark_escalabilidade PRIVATE atrlib)

@@ -87,6 +87,11 @@ namespace atr {
         bool tem_destino = false;
         bool acoplar = false;
         bool parar = false;
+        bool alterar_falha = false;
+        bool falha = false;
+        bool alterar_bateria = false;
+        int bateria = 100;
+        bool modo_manual = false;
     };
 
     struct StatusRoboIPC {
@@ -104,6 +109,10 @@ namespace atr {
 
         int id() const { return id_; }
         void enviar_comando(const ComandoRoboIPC& comando);
+        void injetar_falha(bool falhar);
+        void ajustar_bateria(int nivel);
+        void enviar_destino_manual(Ponto destino);
+        void retornar_ao_automatico();
         StatusRobo ler_status() const;
 
     private:

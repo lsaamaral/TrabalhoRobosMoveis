@@ -42,8 +42,18 @@ namespace atr {
                         contexto.destino = comando.destino;
                         contexto.tem_destino = comando.tem_destino;
                         contexto.acoplar = comando.acoplar;
+                        contexto.modo_manual = comando.modo_manual;
                         if (comando.tem_destino) {
-                            contexto.estado_nav = Estado::IndoParaBaia;
+                            contexto.estado_nav = comando.modo_manual
+                                ? Estado::Manual : Estado::IndoParaBaia;
+                        } else if (!comando.modo_manual) {
+                            contexto.estado_nav = Estado::Disponivel;
+                        }
+                        if (comando.alterar_falha) {
+                            hardware.injetar_falha(comando.falha);
+                        }
+                        if (comando.alterar_bateria) {
+                            hardware.ajustar_bateria(comando.bateria);
                         }
                     }
                     if (comando.parar) {
@@ -103,6 +113,37 @@ namespace atr {
         if (write(comando_fd_, &comando, sizeof(comando)) != static_cast<ssize_t>(sizeof(comando))) {
             throw std::runtime_error("falha ao enviar comando por IPC");
         }
+    }
+
+    void ProcessoRobo::injetar_falha(bool falhar) {
+        ComandoRoboIPC comando{};
+        comando.alterar_falha = true;
+        comando.falha = falhar;
+        enviar_comando(comando);
+    }
+
+    void ProcessoRobo::ajustar_bateria(int nivel) {
+        if (nivel < 0 || nivel > 100) {
+            throw std::invalid_argument("nivel de bateria fora do intervalo 0..100");
+        }
+        ComandoRoboIPC comando{};
+        comando.alterar_bateria = true;
+        comando.bateria = nivel;
+        enviar_comando(comando);
+    }
+
+    void ProcessoRobo::enviar_destino_manual(Ponto destino) {
+        ComandoRoboIPC comando{};
+        comando.destino = destino;
+        comando.tem_destino = true;
+        comando.modo_manual = true;
+        enviar_comando(comando);
+    }
+
+    void ProcessoRobo::retornar_ao_automatico() {
+        ComandoRoboIPC comando{};
+        comando.modo_manual = false;
+        enviar_comando(comando);
     }
 
     StatusRobo ProcessoRobo::ler_status() const {
@@ -171,6 +212,8 @@ namespace atr {
         std::lock_guard<std::mutex> lock(mtx_);
         if (carga.id == 0) {
             carga.id = proximo_id_++;
+        } else {
+            proximo_id_ = std::max(proximo_id_, carga.id + 1);
         }
         fila_.push_back(carga);
     }
@@ -200,7 +243,12 @@ namespace atr {
 
             ProcessoRobo* robo = gestor_.obter_robo(id);
 
-            if (robo == nullptr || robo->ler_status().pos != destino) {
+            if (robo == nullptr) {
+                return false;
+            }
+            const StatusRobo status = robo->ler_status();
+            if (status.falha || status.estado == Estado::Offline ||
+                status.pos != destino) {
                 return false;
             }
         }
@@ -284,6 +332,35 @@ namespace atr {
             }
 
             Tarefa& tarefa = ativas_.front();
+            bool interrompida = false;
+            for (int id : tarefa.robos) {
+                ProcessoRobo* robo = gestor_.obter_robo(id);
+                if (robo == nullptr) {
+                    interrompida = true;
+                    break;
+                }
+                const StatusRobo status = robo->ler_status();
+                if (status.falha || status.estado == Estado::Offline ||
+                    status.estado == Estado::Manual) {
+                    interrompida = true;
+                    break;
+                }
+            }
+            if (interrompida) {
+                for (int id : tarefa.robos) {
+                    ProcessoRobo* robo = gestor_.obter_robo(id);
+                    if (robo == nullptr) continue;
+                    const StatusRobo status = robo->ler_status();
+                    if (status.estado != Estado::Manual) {
+                        robo->enviar_comando({status.pos, false, false, false});
+                    }
+                }
+                registrar(TipoEvento::TarefaAbortada, tarefa,
+                    "tarefa abortada por falha ou comando manual");
+                fila_.push_front(tarefa.carga);
+                ativas_.clear();
+                continue;
+            }
 
             // Aguarda todos os robos chegarem a baia
             if (tarefa.fase == 0 && grupo_na_posicao(tarefa, true)) {

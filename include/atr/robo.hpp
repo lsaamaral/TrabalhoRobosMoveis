@@ -26,6 +26,7 @@ namespace atr {
         Ponto destino{};            // Destino solicitado pelo organizador
         bool tem_destino = false;
         bool acoplar = false;
+        bool modo_manual = false;
 
         // Navegacao -> Status
         Estado estado_nav = Estado::Disponivel;

@@ -100,7 +100,11 @@ namespace atr {
             throw std::invalid_argument("carga fora dos limites do galpao");
         }
         std::lock_guard<std::mutex> lock(mtx_);
-        if (carga.id == 0) carga.id = proximo_tarefa_++;
+        if (carga.id == 0) {
+            carga.id = proximo_tarefa_++;
+        } else {
+            proximo_tarefa_ = std::max(proximo_tarefa_, carga.id + 1);
+        }
         fila_.push_back(carga);
     }
 
